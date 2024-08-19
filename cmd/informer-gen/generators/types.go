@@ -40,4 +40,5 @@ var (
 	metav1NamespaceAll          = types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "NamespaceAll"}
 	metav1Object                = types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "Object"}
 	watchInterface              = types.Name{Package: "k8s.io/apimachinery/pkg/watch", Name: "Interface"}
+	kcpNewSharedIndexInformer   = types.Name{Package: "github.com/kcp-dev/apimachinery/v2/third_party/informers", Name: "NewSharedIndexInformer"}
 )

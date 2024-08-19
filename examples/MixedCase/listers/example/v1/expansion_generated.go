@@ -18,13 +18,31 @@ limitations under the License.
 
 package v1
 
+import (
+	"github.com/kcp-dev/logicalcluster/v3"
+)
+
 // ClusterTestTypeListerExpansion allows custom methods to be added to
 // ClusterTestTypeLister.
 type ClusterTestTypeListerExpansion interface{}
 
+// ClusterTestTypeClusterListerExpansion allows custom methods to be added to
+// ClusterTestTypeLister.
+type ClusterTestTypeClusterListerExpansion interface {
+	// Cluster returns a lister that can list and get ClusterTestType in one workspace.
+	Cluster(clusterName logicalcluster.Name) ClusterTestTypeLister
+}
+
 // TestTypeListerExpansion allows custom methods to be added to
 // TestTypeLister.
 type TestTypeListerExpansion interface{}
+
+// TestTypeClusterListerExpansion allows custom methods to be added to
+// TestTypeLister.
+type TestTypeClusterListerExpansion interface {
+	// Cluster returns a lister that can list and get TestType in one workspace.
+	Cluster(clusterName logicalcluster.Name) TestTypeLister
+}
 
 // TestTypeNamespaceListerExpansion allows custom methods to be added to
 // TestTypeNamespaceLister.

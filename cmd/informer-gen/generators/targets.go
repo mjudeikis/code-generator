@@ -317,6 +317,7 @@ func groupTarget(outputDirBase, outputPackageBase string, groupVersions clientge
 				imports:                   generator.NewImportTracker(),
 				internalInterfacesPackage: path.Join(outputPackageBase, subdirForInternalInterfaces),
 			})
+
 			return generators
 		},
 		FilterFunc: func(c *generator.Context, t *types.Type) bool {
@@ -361,6 +362,18 @@ func versionTarget(outputDirBase, outputPkgBase string, groupPkgName string, gv 
 					clientSetPackage:          clientSetPackage,
 					listersPackage:            listersPackage,
 					internalInterfacesPackage: path.Join(outputPkgBase, subdirForInternalInterfaces),
+				})
+
+				expansionFileName := strings.ToLower(t.Name.Name) + "_expansion.go"
+				generators = append(generators, &genExpansion{
+					groupPackagePath: outputDir,
+					GoGenerator: generator.GoGenerator{
+						OutputFilename: expansionFileName,
+					},
+					imports: generator.NewImportTracker(),
+					types: []*types.Type{
+						t,
+					},
 				})
 			}
 			return generators

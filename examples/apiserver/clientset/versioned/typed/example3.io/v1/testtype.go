@@ -21,49 +21,44 @@ package v1
 import (
 	"context"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	types "k8s.io/apimachinery/pkg/types"
+	"github.com/kcp-dev/logicalcluster/v3"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	watch "k8s.io/apimachinery/pkg/watch"
 	gentype "k8s.io/client-go/gentype"
-	v1 "k8s.io/code-generator/examples/apiserver/apis/example3.io/v1"
+	thirdexamplev1client "k8s.io/client-go/kuberentes/typed/thirdexample/v1"
+	example3iov1 "k8s.io/code-generator/examples/apiserver/apis/example3.io/v1"
 	scheme "k8s.io/code-generator/examples/apiserver/clientset/versioned/scheme"
 )
 
-// TestTypesGetter has a method to return a TestTypeInterface.
+// TestTypesClusterGetter has a method to return a TestTypeClusterInterface.
 // A group's client should implement this interface.
-type TestTypesGetter interface {
-	TestTypes(namespace string) TestTypeInterface
+type TestTypesClusterGetter interface {
+	TestTypes(namespace string) TestTypeClusterInterface
 }
 
 // TestTypeInterface has methods to work with TestType resources.
-type TestTypeInterface interface {
-	Create(ctx context.Context, testType *v1.TestType, opts metav1.CreateOptions) (*v1.TestType, error)
-	Update(ctx context.Context, testType *v1.TestType, opts metav1.UpdateOptions) (*v1.TestType, error)
-	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, testType *v1.TestType, opts metav1.UpdateOptions) (*v1.TestType, error)
-	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
-	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.TestType, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.TestTypeList, error)
-	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.TestType, err error)
+type TestTypeClusterInterface interface {
+	Cluster(logicalcluster.Path) thirdexamplev1client.TestTypeInterface
+
+	List(ctx context.Context, opts v1.ListOptions) (*example3iov1.TestTypeList, error)
+	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
 	TestTypeExpansion
 }
 
 // testTypes implements TestTypeInterface
 type testTypes struct {
-	*gentype.ClientWithList[*v1.TestType, *v1.TestTypeList]
+	*gentype.ClientWithList[*example3iov1.TestType, *example3iov1.TestTypeList]
 }
 
 // newTestTypes returns a TestTypes
 func newTestTypes(c *ThirdExampleV1Client, namespace string) *testTypes {
 	return &testTypes{
-		gentype.NewClientWithList[*v1.TestType, *v1.TestTypeList](
+		gentype.NewClientWithList[*example3iov1.TestType, *example3iov1.TestTypeList](
 			"testtypes",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1.TestType { return &v1.TestType{} },
-			func() *v1.TestTypeList { return &v1.TestTypeList{} }),
+			func() *example3iov1.TestType { return &example3iov1.TestType{} },
+			func() *example3iov1.TestTypeList { return &example3iov1.TestTypeList{} }),
 	}
 }

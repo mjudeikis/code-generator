@@ -552,7 +552,8 @@ function kube::codegen::gen_client() {
         GO111MODULE=on go install $(printf "k8s.io/code-generator/cmd/%s " "${BINS[@]}")
     )
     # Go installs in $GOBIN if defined, and $GOPATH/bin otherwise
-    gobin="${GOBIN:-$(go env GOPATH)/bin}"
+    # HACK(KCP): We use local gobin to use our own binaries.
+    gobin="$(pwd)/../bin"
 
     local group_versions=()
     local input_pkgs=()
@@ -636,7 +637,7 @@ function kube::codegen::gen_client() {
             --include '*.go' \
             || true \
         ) | xargs -0 rm -f
-
+        echo "${gobin}/lister-gen"
         "${gobin}/lister-gen" \
             -v "${v}" \
             --go-header-file "${boilerplate}" \

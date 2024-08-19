@@ -137,6 +137,7 @@ func GetTargets(context *generator.Context, args *args.Args) []generator.Target 
 						OutputFilename: "expansion_generated.go",
 					},
 					outputPath: outputDir,
+					imports:    generator.NewImportTracker(),
 					types:      typesToGenerate,
 				})
 
@@ -218,6 +219,9 @@ func (g *listerGenerator) Imports(c *generator.Context) (imports []string) {
 	imports = append(imports, "k8s.io/client-go/listers")
 	// for Indexer
 	imports = append(imports, "k8s.io/client-go/tools/cache")
+	// KCP specific
+	imports = append(imports, "github.com/kcp-dev/logicalcluster/v3")
+	imports = append(imports, "kcpcache \"github.com/kcp-dev/apimachinery/v2/pkg/cache\"")
 	return
 }
 
@@ -238,23 +242,44 @@ func (g *listerGenerator) GenerateType(c *generator.Context, t *types.Type, w io
 
 	if tags.NonNamespaced {
 		sw.Do(typeListerInterfaceNonNamespaced, m)
+		sw.Do(typeClusterListerInterface, m)
 	} else {
 		sw.Do(typeListerInterface, m)
+		sw.Do(typeClusterListerInterface, m)
 	}
 
 	sw.Do(typeListerStruct, m)
-	sw.Do(typeListerConstructor, m)
+	sw.Do(typeClusterListerStruct, m)
+	sw.Do(typeClusterListerClusterMethod, m)
+	sw.Do(typeListerListMethod, m)
+	sw.Do(typeClusterListerListMethod, m)
+	//sw.Do(typeListerConstructor, m)
+	sw.Do(typeClusterListerConstructor, m)
 
 	if tags.NonNamespaced {
+		sw.Do(typeListerNonNamespaceGetMethod, m)
 		return sw.Error()
 	}
 
 	sw.Do(typeListerNamespaceLister, m)
 	sw.Do(namespaceListerInterface, m)
 	sw.Do(namespaceListerStruct, m)
+	sw.Do(typeListerNamespaceGetMethod, m)
+	sw.Do(typeListerNamespaceListMethod, m)
 
 	return sw.Error()
 }
+
+var typeClusterListerInterface = `
+// $.type|public$ClusterLister helps list $.type|publicPlural$.
+// All objects returned here must be treated as read-only.
+type $.type|public$ClusterLister interface {
+	// List lists all $.type|publicPlural$ in the indexer.
+	// Objects returned here must be treated as read-only.
+	List(selector labels.Selector) (ret []*$.type|raw$, err error)
+	$.type|public$ClusterListerExpansion
+}
+`
 
 var typeListerInterface = `
 // $.type|public$Lister helps list $.type|publicPlural$.
@@ -283,13 +308,34 @@ type $.type|public$Lister interface {
 }
 `
 
+var typeClusterListerInterfaceNonNamespaced = `
+// $.type|public$ClusterLister helps list $.type|publicPlural$.
+// All objects returned here must be treated as read-only.
+type $.type|public$ClusterLister interface {
+	// List lists all $.type|publicPlural$ in the indexer.
+	// Objects returned here must be treated as read-only.
+	List(selector labels.Selector) (ret []*$.type|raw$, err error)
+	// Get retrieves the $.type|public$ from the index for a given name.
+	// Objects returned here must be treated as read-only.
+	Get(name string) (*$.type|raw$, error)
+	$.type|public$ClusterListerExpansion
+}`
+
 // This embeds a typed resource indexer instead of aliasing, so that the struct
 // is available as a receiver for methods specific to the generated type
 // (from the corresponding expansion interface).
 var typeListerStruct = `
 // $.type|private$Lister implements the $.type|public$Lister interface.
 type $.type|private$Lister struct {
-	listers.ResourceIndexer[*$.type|raw$]
+	indexer cache.Indexer
+	clusterName logicalcluster.Name
+}
+`
+
+var typeClusterListerStruct = `
+// $.type|private$Lister implements the $.type|public$ClusterLister interface.
+type $.type|private$ClusterLister struct {
+	indexer cache.Indexer
 }
 `
 
@@ -300,10 +346,50 @@ func New$.type|public$Lister(indexer cache.Indexer) $.type|public$Lister {
 }
 `
 
+var typeClusterListerConstructor = `
+// New$.type|public$ClusterLister returns a new $.type|public$ClusterLister.
+func New$.type|public$ClusterLister(indexer cache.Indexer) $.type|public$ClusterLister {
+	return &$.type|private$ClusterLister{
+		indexer: indexer,
+	}
+}
+`
+
+var typeClusterListerClusterMethod = `
+// Cluster scopes the lister to one workspace, allowing users to list and get $.type|public$.
+func (s *$.type|private$ClusterLister) Cluster(clusterName logicalcluster.Name) $.type|public$Lister {
+	return &$.type|private$Lister{indexer: s.indexer, clusterName: clusterName}
+}
+`
+
+var typeListerListMethod = `
+// List lists all $.type|publicPlural$ in the indexer.
+func (s *$.type|private$Lister) List(selector labels.Selector) (ret []*$.type|raw$, err error) {
+	err = kcpcache.ListAllByCluster(s.indexer, s.clusterName, selector, func(i interface{}) {
+		ret = append(ret, i.(*$.type|raw$))
+	})
+	return ret, err
+}
+`
+
+var typeClusterListerListMethod = `
+// List lists all $.type|publicPlural$ in the indexer.
+func (s *$.type|private$ClusterLister) List(selector labels.Selector) (ret []*$.type|raw$, err error) {
+	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
+		ret = append(ret, m.(*$.type|raw$))
+	})
+	return ret, err
+}
+`
+
 var typeListerNamespaceLister = `
 // $.type|publicPlural$ returns an object that can list and get $.type|publicPlural$.
 func (s *$.type|private$Lister) $.type|publicPlural$(namespace string) $.type|public$NamespaceLister {
-	return $.type|private$NamespaceLister{listers.NewNamespaced[*$.type|raw$](s.ResourceIndexer, namespace)}
+	return $.type|private$NamespaceLister{
+		indexer:   s.indexer,
+		clusterName: s.clusterName,
+		namespace: namespace,
+	}
 }
 `
 
@@ -328,6 +414,47 @@ var namespaceListerStruct = `
 // $.type|private$NamespaceLister implements the $.type|public$NamespaceLister
 // interface.
 type $.type|private$NamespaceLister struct {
-	listers.ResourceIndexer[*$.type|raw$]
+	indexer     cache.Indexer
+	clusterName logicalcluster.Name
+	namespace   string
+}
+`
+
+var typeListerNamespaceListMethod = `
+// Get retrieves the $.type|public$ from the index for a given name.
+func (s $.type|private$NamespaceLister) List(selector labels.Selector) (ret []*$.type|raw$, err error) {
+	err = kcpcache.ListAllByClusterAndNamespace(s.indexer, s.clusterName, s.namespace, selector, func(i interface{}) {
+		ret = append(ret, i.(*$.type|raw$))
+	})
+	return ret, err
+}
+`
+
+var typeListerNamespaceGetMethod = `
+// Get retrieves the $.type|public$ from the index for a given name.
+func (s $.type|private$NamespaceLister) Get(name string) (*$.type|raw$, error) {
+	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, errors.NewNotFound($.Resource|raw$("$.type|lowercaseSingular$"), name)
+	}
+	return obj.(*$.type|raw$), nil
+}
+`
+
+var typeListerNonNamespaceGetMethod = `
+// Get retrieves the $.type|public$ from the index for a given name.
+func (s $.type|private$Lister) Get(name string) (*$.type|raw$, error) {
+	key := kcpcache.ToClusterAwareKey(s.clusterName.String(), "", name)
+	obj, exists, err := s.indexer.GetByKey(key)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, errors.NewNotFound($.Resource|raw$("$.type|lowercaseSingular$"), name)
+	}
+	return obj.(*$.type|raw$), nil
 }
 `

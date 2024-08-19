@@ -17,6 +17,7 @@ limitations under the License.
 package generators
 
 import (
+	"fmt"
 	"io"
 	"path"
 	"strings"
@@ -60,7 +61,10 @@ func (g *genClientForType) Namers(c *generator.Context) namer.NameSystems {
 }
 
 func (g *genClientForType) Imports(c *generator.Context) (imports []string) {
-	return g.imports.ImportLines()
+	imports = append(imports, g.imports.ImportLines()...)
+	// generate imports for upstream import
+	imports = append(imports, fmt.Sprintf("%s%sclient \"k8s.io/client-go/kuberentes/typed/%[1]s/%[2]s\"", strings.ToLower(g.groupGoName), strings.ToLower(g.version)))
+	return imports
 }
 
 // Ideally, we'd like genStatus to return true if there is a subresource path
@@ -125,7 +129,8 @@ func (g *genClientForType) GenerateType(c *generator.Context, t *types.Type, w i
 		if _, exists := subresourceDefaultVerbTemplates[e.VerbType]; e.IsSubresource() && exists {
 			updatedVerbtemplate = e.VerbName + "(" + strings.TrimPrefix(subresourceDefaultVerbTemplates[e.VerbType], titler.String(e.VerbType)+"(")
 		} else {
-			updatedVerbtemplate = e.VerbName + "(" + strings.TrimPrefix(defaultVerbTemplates[e.VerbType], titler.String(e.VerbType)+"(")
+			// KCP does not need this for additional verbs
+			// updatedVerbtemplate = e.VerbName + "(" + strings.TrimPrefix(defaultVerbTemplates[e.VerbType], titler.String(e.VerbType)+"(")
 		}
 		extendedMethod := extendedInterfaceMethod{
 			template: updatedVerbtemplate,
@@ -170,6 +175,7 @@ func (g *genClientForType) GenerateType(c *generator.Context, t *types.Type, w i
 		"ApplyPatchType":                   c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/types", Name: "ApplyPatchType"}),
 		"watchInterface":                   c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/watch", Name: "Interface"}),
 		"RESTClientInterface":              c.Universe.Type(types.Name{Package: "k8s.io/client-go/rest", Name: "Interface"}),
+		"clientTyped":                      c.Universe.Type(types.Name{Package: "k8s.io/client-go/kubernetes/typed", Name: "Interface"}),
 		"schemeParameterCodec":             c.Universe.Variable(types.Name{Package: path.Join(g.clientsetPackage, "scheme"), Name: "ParameterCodec"}),
 		"jsonMarshal":                      c.Universe.Type(types.Name{Package: "encoding/json", Name: "Marshal"}),
 		"resourceVersionMatchNotOlderThan": c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "ResourceVersionMatchNotOlderThan"}),
@@ -180,6 +186,7 @@ func (g *genClientForType) GenerateType(c *generator.Context, t *types.Type, w i
 		"ClientWithList":                                    c.Universe.Type(types.Name{Package: "k8s.io/client-go/gentype", Name: "ClientWithList"}),
 		"ClientWithApply":                                   c.Universe.Type(types.Name{Package: "k8s.io/client-go/gentype", Name: "ClientWithApply"}),
 		"ClientWithListAndApply":                            c.Universe.Type(types.Name{Package: "k8s.io/client-go/gentype", Name: "ClientWithListAndApply"}),
+		"upstreamClient":                                    strings.ToLower(g.groupGoName+g.version+"client.") + namer.IC(t.Name.Name+"Interface"),
 	}
 
 	if generateApply {
@@ -352,59 +359,59 @@ func generateInterface(defaultVerbTemplates map[string]string, tags util.Tags) s
 
 func buildSubresourceDefaultVerbTemplates(generateApply bool) map[string]string {
 	m := map[string]string{
-		"create": `Create(ctx context.Context, $.type|private$Name string, $.inputType|private$ *$.inputType|raw$, opts $.CreateOptions|raw$) (*$.resultType|raw$, error)`,
+		//"create": `Create(ctx context.Context, $.type|private$Name string, $.inputType|private$ *$.inputType|raw$, opts $.CreateOptions|raw$) (*$.resultType|raw$, error)`,
 		"list":   `List(ctx context.Context, $.type|private$Name string, opts $.ListOptions|raw$) (*$.resultType|raw$List, error)`,
 		"update": `Update(ctx context.Context, $.type|private$Name string, $.inputType|private$ *$.inputType|raw$, opts $.UpdateOptions|raw$) (*$.resultType|raw$, error)`,
-		"get":    `Get(ctx context.Context, $.type|private$Name string, options $.GetOptions|raw$) (*$.resultType|raw$, error)`,
+		//"get":    `Get(ctx context.Context, $.type|private$Name string, options $.GetOptions|raw$) (*$.resultType|raw$, error)`,
 	}
-	if generateApply {
-		m["apply"] = `Apply(ctx context.Context, $.type|private$Name string, $.inputType|private$ *$.inputApplyConfig|raw$, opts $.ApplyOptions|raw$) (*$.resultType|raw$, error)`
-	}
+	//if generateApply {
+	//	m["apply"] = `Apply(ctx context.Context, $.type|private$Name string, $.inputType|private$ *$.inputApplyConfig|raw$, opts $.ApplyOptions|raw$) (*$.resultType|raw$, error)`
+	//}
 	return m
 }
 
 func buildDefaultVerbTemplates(generateApply bool) map[string]string {
 	m := map[string]string{
-		"create": `Create(ctx context.Context, $.inputType|private$ *$.inputType|raw$, opts $.CreateOptions|raw$) (*$.resultType|raw$, error)`,
-		"update": `Update(ctx context.Context, $.inputType|private$ *$.inputType|raw$, opts $.UpdateOptions|raw$) (*$.resultType|raw$, error)`,
-		"updateStatus": `// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-UpdateStatus(ctx context.Context, $.inputType|private$ *$.type|raw$, opts $.UpdateOptions|raw$) (*$.type|raw$, error)`,
-		"delete":           `Delete(ctx context.Context, name string, opts $.DeleteOptions|raw$) error`,
-		"deleteCollection": `DeleteCollection(ctx context.Context, opts $.DeleteOptions|raw$, listOpts $.ListOptions|raw$) error`,
-		"get":              `Get(ctx context.Context, name string, opts $.GetOptions|raw$) (*$.resultType|raw$, error)`,
-		"list":             `List(ctx context.Context, opts $.ListOptions|raw$) (*$.resultType|raw$List, error)`,
-		"watch":            `Watch(ctx context.Context, opts $.ListOptions|raw$) ($.watchInterface|raw$, error)`,
-		"patch":            `Patch(ctx context.Context, name string, pt $.PatchType|raw$, data []byte, opts $.PatchOptions|raw$, subresources ...string) (result *$.resultType|raw$, err error)`,
+		//"create": `Create(ctx context.Context, $.inputType|private$ *$.inputType|raw$, opts $.CreateOptions|raw$) (*$.resultType|raw$, error)`,
+		//"update": `Update(ctx context.Context, $.inputType|private$ *$.inputType|raw$, opts $.UpdateOptions|raw$) (*$.resultType|raw$, error)`,
+		//"updateStatus": `// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().UpdateStatus(ctx context.Context, $.inputType|private$ *$.type|raw$, opts $.UpdateOptions|raw$) (*$.type|raw$, error)`,
+		//"delete":           `Delete(ctx context.Context, name string, opts $.DeleteOptions|raw$) error`,
+		//"deleteCollection": `DeleteCollection(ctx context.Context, opts $.DeleteOptions|raw$, listOpts $.ListOptions|raw$) error`,
+		//"get":   `Get(ctx context.Context, name string, opts $.GetOptions|raw$) (*$.resultType|raw$, error)`,
+		"list":  `List(ctx context.Context, opts $.ListOptions|raw$) (*$.resultType|raw$List, error)`,
+		"watch": `Watch(ctx context.Context, opts $.ListOptions|raw$) ($.watchInterface|raw$, error)`,
+		//"patch": `Patch(ctx context.Context, name string, pt $.PatchType|raw$, data []byte, opts $.PatchOptions|raw$, subresources ...string) (result *$.resultType|raw$, err error)`,
 	}
-	if generateApply {
-		m["apply"] = `Apply(ctx context.Context, $.inputType|private$ *$.inputApplyConfig|raw$, opts $.ApplyOptions|raw$) (result *$.resultType|raw$, err error)`
-		m["applyStatus"] = `// Add a +genclient:noStatus comment above the type to avoid generating ApplyStatus().
-ApplyStatus(ctx context.Context, $.inputType|private$ *$.inputApplyConfig|raw$, opts $.ApplyOptions|raw$) (result *$.resultType|raw$, err error)`
-	}
+	//if generateApply {
+	//	m["apply"] = `Apply(ctx context.Context, $.inputType|private$ *$.inputApplyConfig|raw$, opts $.ApplyOptions|raw$) (result *$.resultType|raw$, err error)`
+	//	m["applyStatus"] = `// Add a +genclient:noStatus comment above the type to avoid generating ApplyStatus().ApplyStatus(ctx context.Context, $.inputType|private$ *$.inputApplyConfig|raw$, opts $.ApplyOptions|raw$) (result *$.resultType|raw$, err error)`
+	//}
 	return m
 }
 
 // group client will implement this interface.
 var getterComment = `
-// $.type|publicPlural$Getter has a method to return a $.type|public$Interface.
+// $.type|publicPlural$ClusterGetter has a method to return a $.type|public$ClusterInterface.
 // A group's client should implement this interface.`
 
 var getterNamespaced = `
-type $.type|publicPlural$Getter interface {
-	$.type|publicPlural$(namespace string) $.type|public$Interface
+type $.type|publicPlural$ClusterGetter interface {
+	$.type|publicPlural$(namespace string) $.type|public$ClusterInterface
 }
 `
 
 var getterNonNamespaced = `
-type $.type|publicPlural$Getter interface {
-	$.type|publicPlural$() $.type|public$Interface
+type $.type|publicPlural$ClusterGetter interface {
+	$.type|publicPlural$() $.type|public$ClusterInterface
 }
 `
 
 // this type's interface, typed client will implement this interface.
 var interfaceTemplate1 = `
 // $.type|public$Interface has methods to work with $.type|public$ resources.
-type $.type|public$Interface interface {`
+type $.type|public$ClusterInterface interface {
+	Cluster(logicalcluster.Path) $.upstreamClient$
+`
 
 var interfaceTemplate4 = `
 	$.type|public$Expansion

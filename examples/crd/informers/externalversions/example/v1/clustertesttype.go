@@ -22,9 +22,13 @@ import (
 	"context"
 	time "time"
 
+	kcpcache "github.com/kcp-dev/apimachinery/v2/pkg/cache"
+	informers "github.com/kcp-dev/apimachinery/v2/third_party/informers"
+	"github.com/kcp-dev/logicalcluster/v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
+	upstreamexamplev1informers "k8s.io/client-go/informers/example/v1"
 	cache "k8s.io/client-go/tools/cache"
 	examplev1 "k8s.io/code-generator/examples/crd/apis/example/v1"
 	versioned "k8s.io/code-generator/examples/crd/clientset/versioned"
@@ -34,12 +38,13 @@ import (
 
 // ClusterTestTypeInformer provides access to a shared informer and lister for
 // ClusterTestTypes.
-type ClusterTestTypeInformer interface {
-	Informer() cache.SharedIndexInformer
-	Lister() v1.ClusterTestTypeLister
+type ClusterTestTypeClusterInformer interface {
+	Informer() kcpcache.ScopeableSharedIndexInformer
+	Lister() v1.ClusterTestTypeClusterLister
+	Cluster(logicalcluster.Name) upstreamexamplev1informers.ClusterTestTypeInformer
 }
 
-type clusterTestTypeInformer struct {
+type clusterTestTypeClusterInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
 }
@@ -47,7 +52,7 @@ type clusterTestTypeInformer struct {
 // NewClusterTestTypeInformer constructs a new informer for ClusterTestType type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewClusterTestTypeInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
+func NewClusterTestTypeClusterInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
 	return NewFilteredClusterTestTypeInformer(client, resyncPeriod, indexers, nil)
 }
 
@@ -55,7 +60,7 @@ func NewClusterTestTypeInformer(client versioned.Interface, resyncPeriod time.Du
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
 func NewFilteredClusterTestTypeInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
-	return cache.NewSharedIndexInformer(
+	return informers.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
@@ -76,14 +81,14 @@ func NewFilteredClusterTestTypeInformer(client versioned.Interface, resyncPeriod
 	)
 }
 
-func (f *clusterTestTypeInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
+func (f *clusterTestTypeClusterInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
 	return NewFilteredClusterTestTypeInformer(client, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
-func (f *clusterTestTypeInformer) Informer() cache.SharedIndexInformer {
+func (f *clusterTestTypeClusterInformer) Informer() cache.SharedIndexInformer {
 	return f.factory.InformerFor(&examplev1.ClusterTestType{}, f.defaultInformer)
 }
 
-func (f *clusterTestTypeInformer) Lister() v1.ClusterTestTypeLister {
-	return v1.NewClusterTestTypeLister(f.Informer().GetIndexer())
+func (f *clusterTestTypeClusterInformer) Lister() v1.ClusterTestTypeClusterLister {
+	return v1.NewClusterTestTypeClusterLister(f.Informer().GetIndexer())
 }
