@@ -17,6 +17,6 @@ limitations under the License.
 package exampledashed
 
 const (
-	// GroupName is the group name use in this package
+	// GroupName is the group name use in this package.
 	GroupName = "example-dashed.some.corp"
 )
